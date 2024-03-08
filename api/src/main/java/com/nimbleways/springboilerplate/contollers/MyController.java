@@ -40,36 +40,51 @@ public class MyController {
         List<Long> ids = new ArrayList<>();
         ids.add(orderId);
         Set<Product> products = order.getItems();
-        for (Product p : products) {
-            if (p.getType().equals("NORMAL")) {
-                if (p.getAvailable() > 0) {
-                    p.setAvailable(p.getAvailable() - 1);
-                    pr.save(p);
-                } else {
-                    int leadTime = p.getLeadTime();
-                    if (leadTime > 0) {
-                        ps.notifyDelay(leadTime, p);
+        products.stream().forEach(p -> {
+            switch (p.getType()){
+                case "NORMAL":
+                    if (p.getAvailable() > 0) {
+                        buyOneProduct(p);
+                    } else {
+                        int leadTime = p.getLeadTime();
+                        if (leadTime > 0) {
+                            ps.notifyDelay(leadTime, p);
+                        }
                     }
-                }
-            } else if (p.getType().equals("SEASONAL")) {
-                // Add new season rules
-                if ((LocalDate.now().isAfter(p.getSeasonStartDate()) && LocalDate.now().isBefore(p.getSeasonEndDate())
-                        && p.getAvailable() > 0)) {
-                    p.setAvailable(p.getAvailable() - 1);
-                    pr.save(p);
-                } else {
-                    ps.handleSeasonalProduct(p);
-                }
-            } else if (p.getType().equals("EXPIRABLE")) {
-                if (p.getAvailable() > 0 && p.getExpiryDate().isAfter(LocalDate.now())) {
-                    p.setAvailable(p.getAvailable() - 1);
-                    pr.save(p);
-                } else {
-                    ps.handleExpiredProduct(p);
-                }
+                    break;
+
+                    case "SEASONAL":
+                        if ((LocalDate.now().isAfter(p.getSeasonStartDate()) && LocalDate.now().isBefore(p.getSeasonEndDate())
+                                && p.getAvailable() > 0)) {
+                            buyOneProduct(p);
+                        } else {
+                            ps.handleSeasonalProduct(p);
+                        }
+                    break;
+
+                    case "EXPIRABLE":
+                        if (p.getAvailable() > 0 && p.getExpiryDate().isAfter(LocalDate.now())) {
+                            buyOneProduct(p);
+                        } else {
+                            ps.handleExpiredProduct(p);
+                        }
+                    break;
+
+                case "FLASHSALE":
+                        if(p.getAvailable() > p.getMaxFlashsaleValue() && LocalDate.now().isAfter(p.getFlashsaleSeasonStartDate()) && LocalDate.now().isBefore(p.getFlashsaleSeasonEndDate())){
+                            buyOneProduct(p);
+                        }else {
+                            ps.handleFlashsaleProduct(p);
+                        }
+                    break;
             }
-        }
+        });
 
         return new ProcessOrderResponse(order.getId());
+    }
+
+    private void buyOneProduct(Product p){
+        p.setAvailable(p.getAvailable() - 1);
+        pr.save(p);
     }
 }
